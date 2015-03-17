@@ -17,6 +17,8 @@ public class OAuthSwiftHTTPRequest: NSObject, NSURLConnectionDataDelegate {
     
     var URL: NSURL
     var HTTPMethod: String
+    var HTTPBodyMultipart: NSData?
+    var contentTypeMultipart: String?
     
     var request: NSMutableURLRequest?
     var connection: NSURLConnection!
@@ -81,33 +83,45 @@ public class OAuthSwiftHTTPRequest: NSObject, NSURLConnectionDataDelegate {
             
             var nonOAuthParameters = self.parameters.filter { key, _ in !key.hasPrefix("oauth_") }
             
-            if nonOAuthParameters.count > 0 {
-                if self.HTTPMethod == "GET" || self.HTTPMethod == "HEAD" || self.HTTPMethod == "DELETE" {
-                    let queryString = nonOAuthParameters.urlEncodedQueryStringWithEncoding(self.dataEncoding)
-                    self.request!.URL = self.URL.URLByAppendingQueryString(queryString)
-                    self.request!.setValue("application/x-www-form-urlencoded; charset=\(charset)", forHTTPHeaderField: "Content-Type")
-                }
-                else {
-                    if self.encodeParameters {
+            if (self.HTTPBodyMultipart != nil) {
+                self.request!.setValue(self.contentTypeMultipart!, forHTTPHeaderField: "Content-Type")
+                self.request!.setValue(self.HTTPBodyMultipart!.length.description, forHTTPHeaderField: "Content-Length")
+                self.request!.HTTPBody = self.HTTPBodyMultipart
+            } else {
+                
+                
+                if nonOAuthParameters.count > 0 {
+                    if self.HTTPMethod == "GET" || self.HTTPMethod == "HEAD" || self.HTTPMethod == "DELETE" {
                         let queryString = nonOAuthParameters.urlEncodedQueryStringWithEncoding(self.dataEncoding)
-                        //self.request!.URL = self.URL.URLByAppendingQueryString(queryString)
+                        self.request!.URL = self.URL.URLByAppendingQueryString(queryString)
                         self.request!.setValue("application/x-www-form-urlencoded; charset=\(charset)", forHTTPHeaderField: "Content-Type")
-                        self.request!.HTTPBody = queryString.dataUsingEncoding(NSUTF8StringEncoding, allowLossyConversion: true)
                     }
                     else {
-                        var error: NSError?
-                        if let jsonData: NSData = NSJSONSerialization.dataWithJSONObject(nonOAuthParameters, options: nil, error: &error)  {
-                            self.request!.setValue("application/json; charset=\(charset)", forHTTPHeaderField: "Content-Type")
-                            self.request!.HTTPBody = jsonData
+                        if self.encodeParameters {
+                            let queryString = nonOAuthParameters.urlEncodedQueryStringWithEncoding(self.dataEncoding)
+                            //self.request!.URL = self.URL.URLByAppendingQueryString(queryString)
+                            self.request!.setValue("application/x-www-form-urlencoded; charset=\(charset)", forHTTPHeaderField: "Content-Type")
+                            self.request!.HTTPBody = queryString.dataUsingEncoding(NSUTF8StringEncoding, allowLossyConversion: true)
+                            
+                            
                         }
                         else {
-                            println(error!.localizedDescription)
+                            var error: NSError?
+                            if let jsonData: NSData = NSJSONSerialization.dataWithJSONObject(nonOAuthParameters, options: nil, error: &error)  {
+                                self.request!.setValue("application/json; charset=\(charset)", forHTTPHeaderField: "Content-Type")
+                                self.request!.HTTPBody = jsonData
+                            }
+                            else {
+                                println(error!.localizedDescription)
+                            }
                         }
                     }
                 }
-            }
-        }
                 
+            }
+            
+        }
+        
         dispatch_async(dispatch_get_main_queue()) {
             self.connection = NSURLConnection(request: self.request!, delegate: self)
             self.connection.start()
